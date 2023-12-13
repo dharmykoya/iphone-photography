@@ -127,14 +127,17 @@ class AchievementService {
 
     public function getCurrentBadge($user) {
         $userBadge = $user->badges()->with('badge')->latest()->first();
+        if (!$userBadge) {
+            return 'Beginner';
+        }
         return $userBadge->badge->title;
     }
 
     public function getNextBadge(User $user): string {
-        $userBadge = $user->badges()->with('badge')->latest()->first();
+        $userBadge = $user->badges()->with('badge')->latest()->first()->badge ?? Badge::query()->orderBy('achievement_points', 'asc')->first();
 
         $nextBadges = Badge::all()->sortBy("achievement_points")->filter(function ($value) use ($userBadge) {
-            return $value->achievement_points > $userBadge->badge->achievement_points ;
+            return $value->achievement_points > $userBadge->achievement_points ;
         });
 
         if($nextBadges->count() > 0){
@@ -142,5 +145,19 @@ class AchievementService {
         }
 
         return "No badge";
+    }
+
+    public function getRemainingToUnlockNext($user)
+    {
+        $userBadge = $user->badges()->with('badge')->latest()->first()->badge ?? Badge::query()->orderBy('achievement_points', 'asc')->first();
+
+        $nextBadges = Badge::all()->sortBy("achievement_points")->filter(function ($value) use ($userBadge) {
+            return $value->achievement_points > $userBadge->achievement_points ;
+        });
+
+        if($nextBadges->count() == 0){
+            return 0;
+        }
+        return $nextBadges->first()->achievement_points - $userBadge->achievement_points;
     }
 }
