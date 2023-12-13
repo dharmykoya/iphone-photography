@@ -125,4 +125,8 @@ class AchievementService {
         return $milestones[$milestone];
     }
 
+    public function getCurrentBadge($user) {
+        $userBadge = $user->badges()->with('badge')->latest()->first();
+        return $userBadge->badge->title;
+    }
 }
