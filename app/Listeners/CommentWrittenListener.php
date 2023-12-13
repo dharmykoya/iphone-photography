@@ -2,12 +2,14 @@
 
 namespace App\Listeners;
 
-use App\Events\LessonWatched;
 use App\Services\AchievementService;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Queue\InteractsWithQueue;
 
-class LessonWatchedListener
+class CommentWrittenListener
 {
     protected $achievementService;
+
     /**
      * Create the event listener.
      */
@@ -19,11 +21,8 @@ class LessonWatchedListener
     /**
      * Handle the event.
      */
-    public function handle(LessonWatched $event): void
+    public function handle(object $event): void
     {
-        // mark te video as watched
-        $event->user->watched()->attach($event->lesson->id, ['watched' => true]);
-
-        $this->achievementService->unlockLessonAchievement($event->user);
+        $this->achievementService->unlockCommentAchievement($event->comment);
     }
 }

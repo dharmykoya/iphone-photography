@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\CommentController;
+use App\Http\Controllers\LessonController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -19,4 +21,5 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 });
 
 // api to test the event
-Route::get('/users/{user}/watch/{lesson}/lesson', [\App\Http\Controllers\LessonController::class, "lessonWatched"]);
+Route::get('/users/{user}/watch/{lesson}/lesson', [LessonController::class, "lessonWatched"]);
+Route::post('/comments', [CommentController::class, "comment"]);

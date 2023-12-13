@@ -10,6 +10,7 @@ class Achievement extends Model {
 
     const ACHIEVEMENT_TYPE = [
         "LESSON_WATCHED" => "lesson_watched",
+        "COMMENT_WRITTEN" => "comment_written",
     ];
 
     const LESSON_WATCHED_MILESTONES = [
