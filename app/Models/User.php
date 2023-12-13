@@ -71,5 +71,10 @@ class User extends Authenticatable
     {
         return $this->hasMany(Achievement::class);
     }
+
+    public function badges()
+    {
+        return $this->hasMany(UserBadge::class);
+    }
 }
 

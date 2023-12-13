@@ -3,14 +3,21 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\AchievementService;
 use Illuminate\Http\Request;
 
 class AchievementsController extends Controller
 {
+    protected $achievementService;
+
+    public function __construct(AchievementService $achievementService) {
+        $this->achievementService = $achievementService;
+    }
+
     public function index(User $user)
     {
         return response()->json([
-            'unlocked_achievements' => [],
+            'unlocked_achievements' => $user->achievements->pluck("name"),
             'next_available_achievements' => [],
             'current_badge' => '',
             'next_badge' => '',
