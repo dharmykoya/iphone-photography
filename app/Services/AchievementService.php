@@ -12,14 +12,19 @@ use App\Models\UserBadge;
 
 class AchievementService {
 
+    protected const LESSON_WATCHED = Achievement::ACHIEVEMENT_TYPE['LESSON_WATCHED'];
+    protected const COMMENT_WRITTEN = Achievement::ACHIEVEMENT_TYPE['COMMENT_WRITTEN'];
+
     public function unlockLessonAchievement(User $user): void
     {
-        $count = $user->watched()->count();
+        // count the lesson actions taken by the user
+        $count = $this->countActions($user, self::LESSON_WATCHED);
+
+        // check if the milestone exist
         $milestone = Achievement::LESSON_WATCHED_MILESTONES[$count] ?? null;
 
         if ($milestone) {
-            $this->createAchievement($user, $milestone, Achievement::ACHIEVEMENT_TYPE['LESSON_WATCHED']);
-            event(new AchievementUnlocked($user, $milestone));
+            $this->unlockAchievement($user, $count, self::LESSON_WATCHED);
         }
         $this->unLockBadge($user);
     }
@@ -29,14 +34,27 @@ class AchievementService {
         $user = $comment->user;
         $count = $user->comments()->count();
 
+        // check if the milestone exist
         $milestone = Achievement::COMMENT_WRITTEN_MILESTONES[$count] ?? null;
 
         if ($milestone) {
-            $this->createAchievement($user, $milestone, Achievement::ACHIEVEMENT_TYPE['COMMENT_WRITTEN']);
-            event(new AchievementUnlocked($user, $milestone));
+            $this->unlockAchievement($user, $count, self::COMMENT_WRITTEN);
         }
 
         $this->unLockBadge($user);
+    }
+
+    protected function unlockAchievement(User $user, int $milestoneNumber, string $type): void
+    {
+        $achievementName = $this->getAchievementName($type, $milestoneNumber);
+
+        $user->achievements()->create([
+            'name' => $achievementName,
+            'type' => $type,
+            'unlocked_at' => now(),
+        ]);
+        event(new AchievementUnlocked($user, $achievementName));
+
     }
 
     public function createAchievement($user, $milestone, $type) {
@@ -47,33 +65,38 @@ class AchievementService {
         ]);
     }
 
-    public function unLockBadge($user) {
+    protected function unlockBadge(User $user): void
+    {
         $achievements = $user->achievements->count();
+        $badge = $this->getBadge($achievements);
 
-        $badge = Badge::query()->where('achievement_points', '=', (int) $achievements)->first();
-
-        if ($achievements === 0) {
-            UserBadge::create([
-                'user_id' => $user->id,
-                'badge_id' => $badge->id
-            ]);
-            BadgeUnlocked::dispatch($user, $badge->title);
+        if ($achievements === 0 || ($achievements > 0 && $badge)) {
+            $this->createUserBadge($user, $badge);
+            event(new BadgeUnlocked($user, $badge->title));
         }
+    }
 
-        if ($achievements > 0 && $badge) {
+    protected function getBadge(int $achievements)
+    {
+        return Badge::query()->where('achievement_points', '=', (int) $achievements)->first();
+    }
+
+    protected function createUserBadge(User $user, $badge): void
+    {
+        if ($badge) {
+            // checks if the user already has the badge
             $oldBadge = UserBadge::query()->with('badge')->where([
                 'user_id' => $user->id,
                 'badge_id' => $badge->id
             ])->first();
+
             if (!$oldBadge) {
                 UserBadge::create([
                     'user_id' => $user->id,
-                    'badge_id' => $badge->id
+                    'badge_id' => $badge->id,
                 ]);
-                BadgeUnlocked::dispatch($user, $badge->title);
             }
         }
-        return $badge;
     }
 
     public function getNextAvailableAchievements(User $user): array {
@@ -91,15 +114,9 @@ class AchievementService {
 
     protected function countActions(User $user, string $type): int
     {
-        if ($type === Achievement::ACHIEVEMENT_TYPE['LESSON_WATCHED']) {
-            return $user->watched()->count();
-        }
-
-        if ($type === Achievement::ACHIEVEMENT_TYPE['COMMENT_WRITTEN']) {
-            return $user->comments()->count();
-        }
-
-        return 0;
+        return $type === self::LESSON_WATCHED
+            ? $user->watched()->count()
+            : ($type === self::COMMENT_WRITTEN ? $user->comments()->count() : 0);
     }
 
     protected function getNextMilestone($type, $count, User $user): ?int {
@@ -110,6 +127,7 @@ class AchievementService {
         $unlockedAchievements = $user->achievements->where('type', $type)->pluck('name')->toArray();
 
         foreach ($milestones as $milestone => $achievementName) {
+            // checks if the milestones exist in the user unlocked achievements
             if ($count < $milestone && !in_array($achievementName, $unlockedAchievements, true)) {
                 return $milestone;
             }
@@ -118,7 +136,7 @@ class AchievementService {
     }
 
     protected function getAchievementName($type, $milestone): string {
-        $milestones = $type === Achievement::ACHIEVEMENT_TYPE['LESSON_WATCHED']
+        $milestones = $type === self::LESSON_WATCHED
             ? Achievement::LESSON_WATCHED_MILESTONES
             : Achievement::COMMENT_WRITTEN_MILESTONES;
 
@@ -134,8 +152,10 @@ class AchievementService {
     }
 
     public function getNextBadge(User $user): string {
+        // checks if the user has a badge or picks the smallest badge by achievement points
         $userBadge = $user->badges()->with('badge')->latest()->first()->badge ?? Badge::query()->orderBy('achievement_points', 'asc')->first();
 
+        // sort and filter the badges by achievements points of the user
         $nextBadges = Badge::all()->sortBy("achievement_points")->filter(function ($value) use ($userBadge) {
             return $value->achievement_points > $userBadge->achievement_points ;
         });
@@ -149,8 +169,10 @@ class AchievementService {
 
     public function getRemainingToUnlockNext($user)
     {
+        // checks if the user has a badge or picks the smallest badge by achievement points
         $userBadge = $user->badges()->with('badge')->latest()->first()->badge ?? Badge::query()->orderBy('achievement_points', 'asc')->first();
 
+        // sort and filter the badges by achievements points of the user
         $nextBadges = Badge::all()->sortBy("achievement_points")->filter(function ($value) use ($userBadge) {
             return $value->achievement_points > $userBadge->achievement_points ;
         });
@@ -158,6 +180,7 @@ class AchievementService {
         if($nextBadges->count() == 0){
             return 0;
         }
-        return $nextBadges->first()->achievement_points - $userBadge->achievement_points;
+
+        return $nextBadges->first()->achievement_points - $user->achievements->count();
     }
 }
