@@ -76,5 +76,53 @@ class AchievementService {
         return $badge;
     }
 
+    public function getNextAvailableAchievements(User $user): array {
+        $nextAchievements = [];
+        foreach (Achievement::ACHIEVEMENT_TYPE as $key => $type) {
+            $count = $this->countActions($user, $type);
+            $nextMilestone = $this->getNextMilestone($type, $count, $user);
+            if ($nextMilestone !== null) {
+                $nextAchievements[] = $this->getAchievementName($type, $nextMilestone);
+            }
+        }
+
+        return $nextAchievements;
+    }
+
+    protected function countActions(User $user, string $type): int
+    {
+        if ($type === Achievement::ACHIEVEMENT_TYPE['LESSON_WATCHED']) {
+            return $user->watched()->count();
+        }
+
+        if ($type === Achievement::ACHIEVEMENT_TYPE['COMMENT_WRITTEN']) {
+            return $user->comments()->count();
+        }
+
+        return 0;
+    }
+
+    protected function getNextMilestone($type, $count, User $user): ?int {
+        $milestones = $type === Achievement::ACHIEVEMENT_TYPE['LESSON_WATCHED']
+            ? Achievement::LESSON_WATCHED_MILESTONES
+            : Achievement::COMMENT_WRITTEN_MILESTONES;
+
+        $unlockedAchievements = $user->achievements->where('type', $type)->pluck('name')->toArray();
+
+        foreach ($milestones as $milestone => $achievementName) {
+            if ($count < $milestone && !in_array($achievementName, $unlockedAchievements, true)) {
+                return $milestone;
+            }
+        }
+        return null;
+    }
+
+    protected function getAchievementName($type, $milestone): string {
+        $milestones = $type === Achievement::ACHIEVEMENT_TYPE['LESSON_WATCHED']
+            ? Achievement::LESSON_WATCHED_MILESTONES
+            : Achievement::COMMENT_WRITTEN_MILESTONES;
+
+        return $milestones[$milestone];
+    }
 
 }

@@ -18,7 +18,7 @@ class AchievementsController extends Controller
     {
         return response()->json([
             'unlocked_achievements' => $user->achievements->pluck("name"),
-            'next_available_achievements' => [],
+            'next_available_achievements' => $this->achievementService->getNextAvailableAchievements($user),
             'current_badge' => '',
             'next_badge' => '',
             'remaing_to_unlock_next_badge' => 0
