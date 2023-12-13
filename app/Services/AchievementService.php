@@ -129,4 +129,18 @@ class AchievementService {
         $userBadge = $user->badges()->with('badge')->latest()->first();
         return $userBadge->badge->title;
     }
+
+    public function getNextBadge(User $user): string {
+        $userBadge = $user->badges()->with('badge')->latest()->first();
+
+        $nextBadges = Badge::all()->sortBy("achievement_points")->filter(function ($value) use ($userBadge) {
+            return $value->achievement_points > $userBadge->badge->achievement_points ;
+        });
+
+        if($nextBadges->count() > 0){
+            return $nextBadges->first()->title;
+        }
+
+        return "No badge";
+    }
 }
